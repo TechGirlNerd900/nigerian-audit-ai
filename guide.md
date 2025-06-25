@@ -605,3 +605,42 @@ print(f"Financial Health Score: {result['data']['assessment']['overall_score']}"
 - Data pipeline maintenance
 
 This complete setup provides a production-ready Nigerian Audit AI system on GCP with proper training, deployment, and monitoring capabilities.
+
+
+COMMAND LINE
+
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+##
+cp .env.example .env
+# Now edit the .env file with your values
+
+# Google Cloud Platform (GCP) Setup:
+
+# Log in to your Google Cloud account and set your project ID:
+  Bash
+
+gcloud auth login
+export PROJECT_ID="your-gcp-project-id"
+gcloud config set project $PROJECT_ID
+
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+
+## db Initialize the project's database by running:
+
+python scripts/setup_database.py
+
+
+# Run the data collection script to populate the data directory:
+Bash
+
+python scripts/collect_data.py
+
+## Running the Application:
+
+## You can now run the FastAPI application locally for development:
+Bash
+
+uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
