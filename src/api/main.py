@@ -1,37 +1,46 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import uvicorn
-from typing import Dict, List, Optional
-import logging
+from typing import Dict
 from contextlib import asynccontextmanager
+from loguru import logger
 
 from ..models.financial_analyzer import FinancialAnalyzer
 from ..models.compliance_checker import ComplianceChecker
 from ..models.risk_assessor import RiskAssessor
+from ..models.account_mapper import AccountMapper
+from ..models.substantive_tester import SubstantiveTester
+from ..models.report_generator import ReportGenerator
 from ..schemas.financial import FinancialAnalysisRequest, FinancialAnalysisResponse
 from ..schemas.compliance import ComplianceCheckRequest, ComplianceCheckResponse
+from ..schemas.mapping import AccountMappingRequest, AccountMappingResponse
+from ..schemas.testing import SamplingRequest, SamplingResponse, WorkingPaperRequest, WorkingPaperResponse
+from ..schemas.reporting import AuditReportRequest, AuditReportResponse, ManagementLetterRequest, ManagementLetterResponse
 from ..config.settings import settings
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from .middleware.logging import StructuredLoggingMiddleware
 
 # Global model instances
 financial_analyzer = None
 compliance_checker = None
 risk_assessor = None
+account_mapper = None
+substantive_tester = None
+report_generator = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    global financial_analyzer, compliance_checker, risk_assessor
+    global financial_analyzer, compliance_checker, risk_assessor, account_mapper, substantive_tester, report_generator
     logger.info("🚀 Starting Nigerian Audit AI API...")
     
     # Initialize models
     financial_analyzer = FinancialAnalyzer()
     compliance_checker = ComplianceChecker()
     risk_assessor = RiskAssessor()
+    account_mapper = AccountMapper()
+    substantive_tester = SubstantiveTester()
+    report_generator = ReportGenerator()
     
     logger.info("✅ Models loaded successfully")
     yield
@@ -55,6 +64,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add structured logging middleware
+app.add_middleware(StructuredLoggingMiddleware)
 
 # Security
 security = HTTPBearer()
@@ -144,6 +156,96 @@ async def assess_risk(
         
     except Exception as e:
         logger.error(f"Risk assessment error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/mapping/accounts", response_model=AccountMappingResponse)
+async def map_accounts_endpoint(
+    request: AccountMappingRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Map GL accounts and build a lead schedule"""
+    try:
+        mapped_accounts = account_mapper.map_accounts(request.trial_balance)
+        lead_schedule = account_mapper.build_lead_schedule(mapped_accounts)
+        
+        return AccountMappingResponse(
+            success=True,
+            mapped_accounts=mapped_accounts,
+            lead_schedule=lead_schedule.to_dict(orient="records")
+        )
+        
+    except Exception as e:
+        logger.error(f"Account mapping error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/testing/sampling", response_model=SamplingResponse)
+async def suggest_sampling_endpoint(
+    request: SamplingRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Suggest audit samples based on materiality and risk"""
+    try:
+        suggestions = substantive_tester.suggest_sampling(
+            trial_balance=request.trial_balance,
+            materiality=request.materiality,
+            risk_level=request.risk_level
+        )
+        return SamplingResponse(success=True, suggestions=suggestions)
+    except Exception as e:
+        logger.error(f"Sampling suggestion error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/testing/working-paper", response_model=WorkingPaperResponse)
+async def generate_working_paper_endpoint(
+    request: WorkingPaperRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Generate a working paper for a specific account"""
+    try:
+        working_paper = substantive_tester.generate_working_paper(
+            account_name=request.account_name,
+            transactions=request.transactions
+        )
+        return WorkingPaperResponse(
+            success=True,
+            working_paper=working_paper.to_dict(orient="records"),
+            title=working_paper.attrs.get("title", "")
+        )
+    except Exception as e:
+        logger.error(f"Working paper generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/reporting/audit-report", response_model=AuditReportResponse)
+async def generate_audit_report_endpoint(
+    request: AuditReportRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Generate a draft audit report"""
+    try:
+        report = report_generator.generate_audit_report(
+            company_name=request.company_name,
+            opinion=request.opinion,
+            findings=request.findings
+        )
+        return AuditReportResponse(success=True, report=report)
+    except Exception as e:
+        logger.error(f"Audit report generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/reporting/management-letter", response_model=ManagementLetterResponse)
+async def generate_management_letter_endpoint(
+    request: ManagementLetterRequest,
+    api_key: str = Depends(verify_api_key)
+):
+    """Generate a draft management letter"""
+    try:
+        letter = report_generator.generate_management_letter(
+            company_name=request.company_name,
+            deficiencies=request.deficiencies
+        )
+        return ManagementLetterResponse(success=True, letter=letter)
+    except Exception as e:
+        logger.error(f"Management letter generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/validate/nigerian")

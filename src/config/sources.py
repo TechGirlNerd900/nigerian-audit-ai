@@ -1,4 +1,4 @@
-src/config/sources.py
+#src/config/sources.py
 
 """
 This file centralizes the list of regulatory documents that can be downloaded directly.
@@ -42,4 +42,73 @@ GENERIC_REGULATORY_DOCUMENTS = [
     # Illustrative Statements & Templates
     {'name': 'Deloitte IFRS Illustrative Financial Statements 2023', 'url': 'https://www.iasplus.com/en/publications/global/ifrs-in-your-pocket/2023'},
     {'name': 'KPMG Illustrative Financial Statements IFRS 2023', 'url': 'https://kpmg.com/xx/en/home/insights/2023/10/illustrative-financial-statements-ifrs-2023.html'},
-]
+]    # Path: src/config/sources.py
+
+"""
+Centralized configuration for data sources used by the Nigerian Audit AI.
+This includes official regulatory bodies, financial news, and economic data sources.
+"""
+
+class NigerianRegulatorySources:
+    """
+    Official Nigerian regulatory bodies and their key publications.
+    """
+    CAC_MAIN_PORTAL = "https://www.cac.gov.ng/"
+    CAC_REGISTRATION_SEARCH = "https://search.cac.gov.ng/home" # Specific search portal
+    FIRS_MAIN_PORTAL = "https://www.firs.gov.ng/"
+    FIRS_TAX_LAWS = "https://www.firs.gov.ng/tax-laws/" # Section for tax laws
+    FRCN_MAIN_PORTAL = "https://www.frcnigeria.gov.ng/"
+    FRCN_STANDARDS_GUIDELINES = "https://www.frcnigeria.gov.ng/standards-guidelines/" # Financial reporting standards
+    CBN_MAIN_PORTAL = "https://www.cbn.gov.ng/"
+    CBN_REGULATIONS_GUIDELINES = "https://www.cbn.gov.ng/documents/regulations.asp" # Monetary policy, banking regulations
+    NGX_MAIN_PORTAL = "https://www.ngxgroup.com/"
+    NGX_LISTING_REQUIREMENTS = "https://www.ngxgroup.com/exchange/listing-rules/" # Rules for listed companies
+    SEC_MAIN_PORTAL = "https://sec.gov.ng/"
+    SEC_REGULATIONS_RULES = "https://sec.gov.ng/regulations-rules/" # Capital market regulations
+    PENCOM_MAIN_PORTAL = "https://www.pencom.gov.ng/"
+    PENCOM_GUIDELINES = "https://www.pencom.gov.ng/guidelines/" # Pension regulations
+    NAICOM_MAIN_PORTAL = "https://naicom.gov.ng/"
+    NAICOM_REGULATIONS = "https://naicom.gov.ng/regulations/" # Insurance regulations
+
+class InternationalStandardsSources:
+    """
+    International accounting and auditing standards bodies.
+    """
+    IFRS_FOUNDATION = "https://www.ifrs.org/issued-standards/" # International Financial Reporting Standards
+    IAASB = "https://www.iaasb.org/publications/international-standards-auditing-isas" # International Standards on Auditing
+    AICPA = "https://www.aicpa.org/resources/auditing-and-attestation" # American Institute of CPAs (for general audit principles)
+    PCAOB = "https://pcaobus.org/oversight/standards" # Public Company Accounting Oversight Board (US, but good for general audit practices)
+
+class NigerianLegislationSources:
+    """
+    Key Nigerian legislation relevant to auditing and business.
+    Note: Direct links to specific acts might require searching within government gazettes or legal databases.
+    These are general portals.
+    """
+    LAWS_OF_THE_FEDERATION_PORTAL = "https://www.nigeria-law.org/" # Unofficial but comprehensive collection
+    CAMA_2020_OVERVIEW = "https://www.pwc.com/ng/en/assets/pdf/companies-allied-matters-act-2020-overview.pdf" # PwC overview (example)
+    FINANCE_ACTS_FIRS = FIRS_TAX_LAWS # Finance Acts are usually published by FIRS
+    VAT_ACT_FIRS = FIRS_TAX_LAWS # VAT Act is part of tax laws
+
+class FinancialNewsAndData:
+    """
+    Sources for financial news, market data, and economic indicators.
+    """
+    NBS_MAIN_PORTAL = "https://nigerianstat.gov.ng/" # National Bureau of Statistics (economic data)
+    PROSHARE_NIGERIA = "https://www.proshareng.com/" # Leading financial information hub
+    BUSINESSDAY_NEWSPAPER = "https://businessday.ng/" # Business news
+    PREMIUM_TIMES_BUSINESS = "https://www.premiumtimesng.com/business" # Business news
+    BLOOMBERG_AFRICA = "https://www.bloomberg.com/africa" # International perspective on African markets
+    REUTERS_AFRICA = "https://www.reuters.com/markets/africa/" # International news on African markets
+
+class OtherRelevantSources:
+    """
+    Miscellaneous but relevant sources for audit context.
+    """
+    EFCC_MAIN_PORTAL = "https://www.efcc.gov.ng/" # Economic and Financial Crimes Commission (anti-corruption)
+    ICAEW_RESOURCES = "https://www.icaew.com/technical/audit-and-assurance" # Institute of Chartered Accountants in England and Wales (global best practices)
+    ICAN_MAIN_PORTAL = "https://www.icanig.org/" # Institute of Chartered Accountants of Nigeria (local professional body)
+
+# Example usage:
+# print(NigerianRegulatorySources.CAC_MAIN_PORTAL)
+# print(InternationalStandardsSources.IFRS_FOUNDATION)

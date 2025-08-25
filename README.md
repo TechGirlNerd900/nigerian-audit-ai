@@ -113,13 +113,13 @@ chmod +x scripts/setup.sh
 
 ```bash
 # Initialize database
-python scripts/setup_database.py
+python3 scripts/setup_database.py
 
 # Collect training data
-python scripts/collect_data.py
+python3 scripts/collect_data.py
 
 # Train models
-python scripts/train_models.py
+python3 scripts/train_models.py
 ```
 
 ### 5. Start the API

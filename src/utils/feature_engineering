@@ -1,0 +1,169 @@
+# Path: src/utils/feature_engineering.py
+
+import pandas as pd
+import numpy as np
+from typing import List, Dict, Any
+from loguru import logger
+
+logger.add("file.log", rotation="500 MB")
+
+class FinancialFeatureEngineer:
+    """
+    Generates advanced financial features for audit analysis.
+    """
+
+    def __init__(self):
+        logger.info("Initialized FinancialFeatureEngineer.")
+
+    def calculate_common_ratios(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculates common financial ratios from a DataFrame.
+        Assumes columns like 'revenue', 'cost_of_sales', 'total_assets', 'total_liabilities', 'equity',
+        'profit_after_tax', 'cash_from_operations', 'current_assets', 'current_liabilities'.
+        """
+        logger.info("Calculating common financial ratios.")
+        df_copy = df.copy()
+
+        # Profitability Ratios
+        df_copy['gross_profit_margin'] = df_copy.apply(
+            lambda row: row['gross_profit'] / row['revenue'] if row['revenue'] != 0 else 0, axis=1
+        )
+        df_copy['net_profit_margin'] = df_copy.apply(
+            lambda row: row['profit_after_tax'] / row['revenue'] if row['revenue'] != 0 else 0, axis=1
+        )
+        df_copy['return_on_assets'] = df_copy.apply(
+            lambda row: row['profit_after_tax'] / row['total_assets'] if row['total_assets'] != 0 else 0, axis=1
+        )
+        df_copy['return_on_equity'] = df_copy.apply(
+            lambda row: row['profit_after_tax'] / row['equity'] if row['equity'] != 0 else 0, axis=1
+        )
+
+        # Liquidity Ratios (assuming 'current_assets' and 'current_liabilities' exist or can be derived)
+        # Placeholder: You might need to add these columns to your raw data or derive them
+        if 'current_assets' in df_copy.columns and 'current_liabilities' in df_copy.columns:
+            df_copy['current_ratio'] = df_copy.apply(
+                lambda row: row['current_assets'] / row['current_liabilities'] if row['current_liabilities'] != 0 else 0, axis=1
+            )
+            df_copy['quick_ratio'] = df_copy.apply(
+                lambda row: (row['current_assets'] - row.get('inventory', 0)) / row['current_liabilities'] if row['current_liabilities'] != 0 else 0, axis=1
+            )
+        else:
+            logger.warning("Current assets/liabilities not found for liquidity ratios. Skipping.")
+
+        # Solvency Ratios
+        df_copy['debt_to_equity_ratio'] = df_copy.apply(
+            lambda row: row['total_liabilities'] / row['equity'] if row['equity'] != 0 else 0, axis=1
+        )
+        df_copy['debt_to_assets_ratio'] = df_copy.apply(
+            lambda row: row['total_liabilities'] / row['total_assets'] if row['total_assets'] != 0 else 0, axis=1
+        )
+
+        # Efficiency Ratios (assuming 'accounts_receivable', 'inventory', 'cost_of_goods_sold' exist)
+        # Placeholder: Add these columns to your raw data or derive them
+        # if 'accounts_receivable' in df_copy.columns and 'cost_of_goods_sold' in df_copy.columns:
+        #     df_copy['accounts_receivable_turnover'] = df_copy.apply(
+        #         lambda row: row['revenue'] / row['accounts_receivable'] if row['accounts_receivable'] != 0 else 0, axis=1
+        #     )
+        # if 'inventory' in df_copy.columns and 'cost_of_goods_sold' in df_copy.columns:
+        #     df_copy['inventory_turnover'] = df_copy.apply(
+        #         lambda row: row['cost_of_goods_sold'] / row['inventory'] if row['inventory'] != 0 else 0, axis=1
+        #     )
+
+        # Handle potential NaNs or Infs from division by zero, replace with 0 or a suitable value
+        df_copy = df_copy.replace([np.inf, -np.inf], np.nan).fillna(0)
+        return df_copy
+
+    def calculate_time_series_features(self, df: pd.DataFrame, group_cols: List[str] = ['company_id'], value_cols: List[str] = ['revenue', 'profit_after_tax']) -> pd.DataFrame:
+        """
+        Calculates year-over-year growth and moving averages for specified value columns.
+        Assumes 'year' column exists and data is sorted by group_cols and 'year'.
+        """
+        logger.info("Calculating time-series features.")
+        df_copy = df.copy()
+        df_copy = df_copy.sort_values(by=group_cols + ['year'])
+
+        for col in value_cols:
+            # Year-over-year growth
+            df_copy[f'{col}_yoy_growth'] = df_copy.groupby(group_cols)[col].pct_change() * 100
+            # Fill first year's NaN with 0 or a sensible default
+            df_copy[f'{col}_yoy_growth'] = df_copy[f'{col}_yoy_growth'].replace([np.inf, -np.inf], np.nan).fillna(0)
+
+            # 2-year moving average
+            df_copy[f'{col}_2yr_ma'] = df_copy.groupby(group_cols)[col].transform(lambda x: x.rolling(window=2, min_periods=1).mean())
+
+        return df_copy
+
+    def extract_textual_features(self, df: pd.DataFrame, text_column: str = 'audit_report_text') -> pd.DataFrame:
+        """
+        Placeholder for extracting textual features (e.g., sentiment, keyword presence).
+        This would typically involve NLP models.
+        """
+        logger.info(f"Extracting textual features from '{text_column}'.")
+        df_copy = df.copy()
+
+        if text_column in df_copy.columns:
+            # Example: Simple keyword presence
+            df_copy['has_going_concern_issue_keyword'] = df_copy[text_column].apply(
+                lambda x: 1 if "going concern" in str(x).lower() else 0
+            )
+            df_copy['has_fraud_keyword'] = df_copy[text_column].apply(
+                lambda x: 1 if "fraud" in str(x).lower() or "misstatement" in str(x).lower() else 0
+            )
+            # More advanced: integrate with a pre-trained sentiment analysis model
+            # from transformers import pipeline
+            # sentiment_pipeline = pipeline("sentiment-analysis")
+            # df_copy['report_sentiment'] = df_copy[text_column].apply(lambda x: sentiment_pipeline(x)[0]['label'] if pd.notna(x) else None)
+        else:
+            logger.warning(f"Text column '{text_column}' not found. Skipping textual feature extraction.")
+
+        return df_copy
+
+    def generate_all_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Applies all feature engineering steps.
+        """
+        logger.info("Generating all features.")
+        df = self.calculate_common_ratios(df)
+        df = self.calculate_time_series_features(df)
+        df = self.extract_textual_features(df) # Ensure 'audit_report_text' or similar exists for this to be useful
+        return df
+
+# Example Usage:
+if __name__ == "__main__":
+    # Create a dummy DataFrame with more columns for demonstration
+    data = {
+        'company_id': [1, 1, 2, 2, 3],
+        'year': [2021, 2022, 2021, 2022, 2022],
+        'revenue': [1000000, 1200000, 500000, 600000, 800000],
+        'cost_of_sales': [500000, 600000, 250000, 300000, 400000],
+        'gross_profit': [500000, 600000, 250000, 300000, 400000],
+        'operating_expenses': [200000, 250000, 100000, 120000, 150000],
+        'profit_before_tax': [300000, 350000, 150000, 180000, 250000],
+        'tax_expense': [90000, 105000, 45000, 54000, 75000],
+        'profit_after_tax': [210000, 245000, 105000, 126000, 175000],
+        'total_assets': [5000000, 6000000, 2500000, 3000000, 4000000],
+        'total_liabilities': [2000000, 2500000, 1000000, 1200000, 1600000],
+        'equity': [3000000, 3500000, 1500000, 1800000, 2400000],
+        'cash_from_operations': [150000, 180000, 70000, 85000, 100000],
+        'cash_from_investing': [-50000, -60000, -20000, -25000, -30000],
+        'cash_from_financing': [20000, 30000, 10000, 15000, 20000],
+        'current_assets': [1000000, 1200000, 500000, 600000, 800000],
+        'current_liabilities': [400000, 500000, 200000, 250000, 320000],
+        'audit_report_text': [
+            "The company is a going concern. No issues.",
+            "Minor issues noted, but not a going concern.",
+            "Significant misstatement found, potential fraud.",
+            "Clean audit report.",
+            "Partial compliance, some fraud indicators."
+        ]
+    }
+    df = pd.DataFrame(data)
+
+    fe = FinancialFeatureEngineer()
+    df_engineered = fe.generate_all_features(df)
+
+    print("\nEngineered DataFrame Head:")
+    print(df_engineered.head())
+
+    print("\nColumns added:")
+    print([col for col in df_engineered.columns if col not in data.keys()])

@@ -1,63 +1,58 @@
-import logging
 import time
 import json
 from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import StreamingResponse
+from loguru import logger
+import sys
 
-logger = logging.getLogger(__name__)
+# Configure Loguru for structured JSON logging
+logger.remove()
+logger.add(
+    sys.stdout,
+    format="{message}",
+    serialize=True,
+    level="INFO"
+)
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware for logging requests and responses"""
+class StructuredLoggingMiddleware(BaseHTTPMiddleware):
+    """Middleware for structured logging of requests and responses using Loguru."""
     
-    def __init__(self, app, log_level: str = "INFO"):
-        super().__init__(app)
-        self.log_level = getattr(logging, log_level.upper())
-        
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Start timing
         start_time = time.time()
         
-        # Extract request info
         request_info = await self._extract_request_info(request)
         
-        # Log request
-        if logger.isEnabledFor(self.log_level):
-            logger.log(self.log_level, f"Request started: {request_info}")
+        log_fields = {
+            "request": request_info,
+            "status": "processing"
+        }
         
-        # Process request
+        logger.info(log_fields)
+        
         try:
             response = await call_next(request)
-            
-            # Calculate processing time
             process_time = time.time() - start_time
             
-            # Extract response info
             response_info = self._extract_response_info(response, process_time)
             
-            # Log response
-            if logger.isEnabledFor(self.log_level):
-                logger.log(self.log_level, f"Request completed: {response_info}")
+            log_fields["response"] = response_info
+            log_fields["status"] = "completed"
             
-            # Add processing time header
+            logger.info(log_fields)
+            
             response.headers["X-Process-Time"] = str(process_time)
             
             return response
             
         except Exception as e:
-            # Calculate processing time for failed requests
             process_time = time.time() - start_time
             
-            # Log error
-            error_info = {
-                **request_info,
-                "error": str(e),
-                "process_time": process_time,
-                "status": "error"
-            }
+            log_fields["error"] = str(e)
+            log_fields["status"] = "failed"
+            log_fields["process_time"] = process_time
             
-            logger.error(f"Request failed: {error_info}")
+            logger.error(log_fields)
             raise
     
     async def _extract_request_info(self, request: Request) -> dict:
@@ -158,8 +153,8 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             }
             
             # Use a separate audit logger
-            audit_logger = logging.getLogger("audit")
-            audit_logger.info(json.dumps(audit_data))
+            audit_logger = logger.bind(name="audit")
+            audit_logger.info(audit_data)
             
         except Exception as e:
             logger.error(f"Failed to log audit event: {e}")

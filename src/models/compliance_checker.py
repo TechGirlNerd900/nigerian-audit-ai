@@ -1,11 +1,47 @@
 import logging
 from typing import Dict, List, Any
 from datetime import datetime
+import os
+import json
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+
 from ..utils.nigerian_standards import NigerianTaxRates
 from ..utils.validators import NigerianValidator
 from ..schemas.compliance import ComplianceStatus, ViolationSeverity, ComplianceViolation
 
 logger = logging.getLogger(__name__)
+
+class ComplianceRAG:
+    """Retrieval-Augmented Generation for compliance checking"""
+    def __init__(self, documents_path="data/regulations/processed_regulations.json"):
+        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.documents_path = documents_path
+        self.documents = self._load_documents()
+        self.index = self._build_index()
+
+    def _load_documents(self) -> List[Dict]:
+        if not os.path.exists(self.documents_path):
+            logger.warning(f"Regulatory documents not found at {self.documents_path}. RAG will not be effective.")
+            return []
+        with open(self.documents_path, 'r') as f:
+            return json.load(f)
+
+    def _build_index(self):
+        if not self.documents:
+            return None
+        embeddings = self.model.encode([doc['text'] for doc in self.documents])
+        index = faiss.IndexFlatL2(embeddings.shape[1])
+        index.add(np.array(embeddings, dtype=np.float32))
+        return index
+
+    def query(self, query_text: str, k: int = 3) -> List[Dict]:
+        if not self.index:
+            return []
+        query_embedding = self.model.encode([query_text])
+        distances, indices = self.index.search(np.array(query_embedding, dtype=np.float32), k)
+        return [self.documents[i] for i in indices[0]]
 
 class ComplianceChecker:
     """Nigerian regulatory compliance checker"""
@@ -13,6 +49,7 @@ class ComplianceChecker:
     def __init__(self):
         self.validator = NigerianValidator()
         self.tax_rates = NigerianTaxRates()
+        self.rag = ComplianceRAG()
         
     def check_compliance(self, company_data: Dict, financial_data: Dict, regulations: List[str]) -> Dict:
         """Main compliance checking function"""
@@ -82,14 +119,16 @@ class ComplianceChecker:
         if is_public or annual_revenue > 500_000_000:  # ₦500M threshold
             # Check financial statement filing
             if not financial_data.get('financial_statements_filed', False):
+                rag_info = self.rag.query("FRC financial statement filing deadline")
                 violations.append({
                     'regulation': 'FRC',
                     'violation_type': 'Filing Requirement',
                     'description': 'Annual financial statements not filed with FRC',
                     'severity': ViolationSeverity.HIGH,
-                    'recommendation': 'File audited financial statements within 90 days of year-end',
+                    'recommendation': 'File audited financial statements with FRC.',
                     'penalty_range': '₦500,000 - ₦2,000,000',
-                    'deadline': 'Within 90 days of financial year-end'
+                    'deadline': 'Within 90 days of financial year-end',
+                    'rag_references': rag_info
                 })
                 missing_requirements.append('Annual financial statements filing')
             else:
@@ -97,13 +136,15 @@ class ComplianceChecker:
             
             # Check IFRS compliance
             if not financial_data.get('ifrs_compliant', True):
+                rag_info = self.rag.query("IFRS compliance requirements in Nigeria")
                 violations.append({
                     'regulation': 'FRC',
                     'violation_type': 'IFRS Compliance',
                     'description': 'Financial statements not prepared in accordance with IFRS',
                     'severity': ViolationSeverity.CRITICAL,
                     'recommendation': 'Ensure financial statements comply with Nigerian IFRS',
-                    'penalty_range': '₦1,000,000 - ₦5,000,000'
+                    'penalty_range': '₦1,000,000 - ₦5,000,000',
+                    'rag_references': rag_info
                 })
                 missing_requirements.append('IFRS compliance')
             else:
@@ -166,13 +207,15 @@ class ComplianceChecker:
         annual_revenue = financial_data.get('annual_revenue', 0)
         if annual_revenue > self.tax_rates.VAT_THRESHOLD:
             if not financial_data.get('vat_registered', False):
+                rag_info = self.rag.query("VAT registration threshold Nigeria")
                 violations.append({
                     'regulation': 'FIRS',
                     'violation_type': 'VAT Registration',
                     'description': f'Company exceeds VAT threshold (₦{self.tax_rates.VAT_THRESHOLD:,}) but not registered for VAT',
                     'severity': ViolationSeverity.HIGH,
                     'recommendation': 'Register for VAT with FIRS within 30 days',
-                    'penalty_range': '₦100,000 - ₦500,000'
+                    'penalty_range': '₦100,000 - ₦500,000',
+                    'rag_references': rag_info
                 })
                 missing_requirements.append('VAT registration')
             else:
@@ -180,6 +223,7 @@ class ComplianceChecker:
         
         # Check tax filing compliance
         if not financial_data.get('tax_returns_filed', False):
+            rag_info = self.rag.query("corporate income tax filing deadline Nigeria")
             violations.append({
                 'regulation': 'FIRS',
                 'violation_type': 'Tax Filing',
@@ -187,7 +231,8 @@ class ComplianceChecker:
                 'severity': ViolationSeverity.CRITICAL,
                 'recommendation': 'File annual tax returns before due date',
                 'penalty_range': '₦25,000 + 10% of tax due',
-                'deadline': 'Within 6 months of financial year-end'
+                'deadline': 'Within 6 months of financial year-end',
+                'rag_references': rag_info
             })
             missing_requirements.append('Tax returns filing')
         else:
@@ -246,6 +291,7 @@ class ComplianceChecker:
         
         # Check annual returns filing
         if not financial_data.get('annual_returns_filed', False):
+            rag_info = self.rag.query("CAMA annual returns filing deadline")
             violations.append({
                 'regulation': 'CAMA',
                 'violation_type': 'Annual Returns',
@@ -253,7 +299,8 @@ class ComplianceChecker:
                 'severity': ViolationSeverity.MEDIUM,
                 'recommendation': 'File annual returns with CAC',
                 'penalty_range': '₦50,000 - ₦200,000',
-                'deadline': 'Within 42 days of AGM'
+                'deadline': 'Within 42 days of AGM',
+                'rag_references': rag_info
             })
             missing_requirements.append('Annual returns filing')
         else:
@@ -292,12 +339,14 @@ class ComplianceChecker:
             # Check capital adequacy
             capital_ratio = financial_data.get('capital_adequacy_ratio', 0)
             if capital_ratio < 0.15:  # 15% minimum
+                rag_info = self.rag.query("CBN capital adequacy ratio for banks")
                 violations.append({
                     'regulation': 'CBN',
                     'violation_type': 'Capital Adequacy',
                     'description': f'Capital adequacy ratio ({capital_ratio:.1%}) below CBN minimum of 15%',
                     'severity': ViolationSeverity.CRITICAL,
-                    'recommendation': 'Increase capital to meet CBN requirements'
+                    'recommendation': 'Increase capital to meet CBN requirements',
+                    'rag_references': rag_info
                 })
                 missing_requirements.append('Adequate capital ratio')
             else:
@@ -306,12 +355,14 @@ class ComplianceChecker:
             # Check liquidity ratio
             liquidity_ratio = financial_data.get('liquidity_ratio', 0)
             if liquidity_ratio < 0.30:  # 30% minimum
+                rag_info = self.rag.query("CBN liquidity ratio for banks")
                 violations.append({
                     'regulation': 'CBN',
                     'violation_type': 'Liquidity Ratio',
                     'description': f'Liquidity ratio ({liquidity_ratio:.1%}) below CBN minimum of 30%',
                     'severity': ViolationSeverity.HIGH,
-                    'recommendation': 'Improve liquidity position'
+                    'recommendation': 'Improve liquidity position',
+                    'rag_references': rag_info
                 })
                 missing_requirements.append('Adequate liquidity ratio')
             else:
@@ -378,7 +429,7 @@ class ComplianceChecker:
         
         return recommendations
     
-    def _generate_action_items(self, detailed_results: List[Dict]) -> List[str]:
+    def _generate_action_.items(self, detailed_results: List[Dict]) -> List[str]:
         """Generate immediate action items"""
         
         action_items = []
@@ -389,4 +440,3 @@ class ComplianceChecker:
                     action_items.append(f"{violation['regulation']}: {violation['recommendation']}")
         
         return action_items[:10]  # Limit to top 10 action items
-

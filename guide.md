@@ -10,8 +10,8 @@ git clone https://github.com/yourusername/nigerian-audit-ai.git
 cd nigerian-audit-ai
 
 # Set up environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv venv
+source venv/bin/activate 
 pip install -r requirements.txt
 
 # Configure environment
@@ -23,12 +23,13 @@ cp .env.example .env
 
 ```bash
 # Install Google Cloud SDK (if not already installed)
+# Install Google Cloud SDK (if not already installed)
 curl https://sdk.cloud.google.com | bash
 exec -l $SHELL
 
 # Login and set project
 gcloud auth login
-export PROJECT_ID="your-project-id"
+export PROJECT_ID="model-463723" # Make sure this is correctly set to your actual project ID
 gcloud config set project $PROJECT_ID
 
 # Enable required APIs
@@ -39,7 +40,7 @@ gcloud services enable \
     documentai.googleapis.com \
     cloudbuild.googleapis.com \
     run.googleapis.com \
-    compute.googleapis.com
+    compute.googleapis.com   
 
 # Create service account
 gcloud iam service-accounts create nigerian-audit-ai \
@@ -47,23 +48,23 @@ gcloud iam service-accounts create nigerian-audit-ai \
 
 # Grant necessary permissions
 gcloud projects add-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:nigerian-audit-ai@$PROJECT_ID.iam.gserviceaccount.com" \
+    --member="serviceAccount:nigerian-audit-ai@${PROJECT_ID}.iam.gserviceaccount.com" \
     --role="roles/aiplatform.admin"
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:nigerian-audit-ai@$PROJECT_ID.iam.gserviceaccount.com" \
+    --member="serviceAccount:nigerian-audit-ai@${PROJECT_ID}.iam.gserviceaccount.com" \
     --role="roles/storage.admin"
 
 gcloud projects add-iam-policy-binding $PROJECT_ID \
-    --member="serviceAccount:nigerian-audit-ai@$PROJECT_ID.iam.gserviceaccount.com" \
+    --member="serviceAccount:nigerian-audit-ai@${PROJECT_ID}.iam.gserviceaccount.com" \
     --role="roles/bigquery.admin"
 
 # Create and download service account key
 gcloud iam service-accounts keys create ./gcp-service-account.json \
-    --iam-account=nigerian-audit-ai@$PROJECT_ID.iam.gserviceaccount.com
+    --iam-account=nigerian-audit-ai@${PROJECT_ID}.iam.gserviceaccount.com
 
 # Create storage bucket
-gsutil mb gs://$PROJECT_ID-nigerian-audit-ai
+gsutil mb gs://${PROJECT_ID}-nigerian-audit-ai
 
 # Create BigQuery dataset
 bq mk --location=us-central1 nigerian_audit_ai
@@ -234,26 +235,14 @@ docker push gcr.io/$PROJECT_ID/nigerian-audit-trainer:latest
 ### 6. Submit Training Jobs
 
 ```bash
-# Train individual models
-python -c "
-from src.training.vertex_ai_trainer import VertexAITrainer
-import os
+# Train individual models locally
+python scripts/train_models.py --model financial_analysis --epochs 50
 
-trainer = VertexAITrainer(
-    project_id=os.getenv('GOOGLE_CLOUD_PROJECT_ID'),
-    region='us-central1'
-)
+# Train all models on Vertex AI
+python scripts/train_models.py --vertex
 
-# Train financial analysis model
-trainer.create_training_job('financial_analysis', {
-    'epochs': 100,
-    'batch_size': 32,
-    'learning_rate': 0.001
-})
-"
-
-# Or train all models at once
-python src/training/vertex_ai_trainer.py
+# Train a specific model on Vertex AI
+python scripts/train_models.py --model financial_analysis --vertex --epochs 100
 ```
 
 ### 7. Model Deployment

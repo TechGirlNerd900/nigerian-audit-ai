@@ -39,6 +39,11 @@ def main():
         action="store_true",
         help="Collect fresh training data before training"
     )
+    parser.add_argument(
+        "--vertex",
+        action="store_true",
+        help="Train on Vertex AI"
+    )
     
     args = parser.parse_args()
     
@@ -46,6 +51,7 @@ def main():
     logger.info(f"Model: {args.model}")
     logger.info(f"Epochs: {args.epochs}")
     logger.info(f"Batch Size: {args.batch_size}")
+    logger.info(f"Train on Vertex AI: {args.vertex}")
     
     # Collect data if requested
     if args.collect_data:
@@ -54,13 +60,13 @@ def main():
         collector.collect_all_data()
     
     # Initialize trainer
-    trainer = ModelTrainer()
+    trainer = ModelTrainer(train_on_vertex=args.vertex)
     
     # Train models
     if args.model == "all":
-        trainer.train_all_models()
+        trainer.train_all_models(epochs=args.epochs, batch_size=args.batch_size)
     elif args.model == "financial":
-        trainer.train_financial_analysis_model()
+        trainer.train_financial_analysis_model(epochs=args.epochs, batch_size=args.batch_size)
     elif args.model == "compliance":
         trainer.train_compliance_checker_model()
     elif args.model == "risk":

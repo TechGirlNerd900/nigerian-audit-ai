@@ -1,206 +1,145 @@
-import asyncio
-import logging
-from typing import Dict, List
-from bs4 import BeautifulSoup
-import re
-from .base_scraper import BaseScraper
+# Path: src/scrapers/ngx_scraper.py
 
-logger = logging.getLogger(__name__)
+from bs4 import BeautifulSoup
+import requests
+from typing import Dict, Any, List, Optional, Union
+from loguru import logger
+from src.scrapers.base_scraper import BaseScraper
+from src.config.sources import NigerianRegulatorySources
+
+logger.add("file.log", rotation="500 MB")
 
 class NGXScraper(BaseScraper):
-    """Scraper for Nigerian Exchange Group (NGX) financial data"""
-    
+    """
+    Scrapes financial data and company information from the Nigerian Exchange Group (NGX) website.
+    """
+
     def __init__(self):
-        super().__init__(delay=3)  # Respectful 3-second delay
-        self.base_url = "https://ngxgroup.com"
-        self.companies_data = []
-    
-    async def collect_data(self) -> Dict:
-        """Collect financial statements and company data from NGX"""
-        
-        logger.info("Starting NGX data collection...")
-        
-        try:
-            # Get list of listed companies
-            companies = await self._get_listed_companies()
-            
-            # Collect annual reports for major companies
-            annual_reports = await self._collect_annual_reports(companies[:20])  # Top 20
-            
-            # Get market data
-            market_data = await self._get_market_data()
-            
-            collected_data = {
-                'source': 'NGX',
-                'collection_date': datetime.now().isoformat(),
-                'companies': companies,
-                'annual_reports': annual_reports,
-                'market_data': market_data,
-                'total_companies': len(companies)
-            }
-            
-            # Save data
-            self.save_data(collected_data, f'ngx_data_{datetime.now().strftime("%Y%m%d")}.json')
-            
-            return collected_data
-            
-        except Exception as e:
-            logger.error(f"NGX data collection failed: {e}")
-            return {'error': str(e)}
-    
-    async def _get_listed_companies(self) -> List[Dict]:
-        """Get list of companies listed on NGX"""
-        
-        companies = []
-        
-        try:
-            # This would be the actual NGX companies listing page
-            # For demo purposes, using placeholder data
-            
-            # Major Nigerian companies (placeholder data)
-            major_companies = [
-                {'symbol': 'DANGCEM', 'name': 'Dangote Cement Plc', 'sector': 'Industrial Goods'},
-                {'symbol': 'MTNN', 'name': 'MTN Nigeria Communications Plc', 'sector': 'ICT'},
-                {'symbol': 'AIRTELAFRI', 'name': 'Airtel Africa Plc', 'sector': 'ICT'},
-                {'symbol': 'ZENITHBANK', 'name': 'Zenith Bank Plc', 'sector': 'Banking'},
-                {'symbol': 'GTCO', 'name': 'Guaranty Trust Holding Company Plc', 'sector': 'Banking'},
-                {'symbol': 'ACCESS', 'name': 'Access Holdings Plc', 'sector': 'Banking'},
-                {'symbol': 'UBA', 'name': 'United Bank for Africa Plc', 'sector': 'Banking'},
-                {'symbol': 'FBNH', 'name': 'FBN Holdings Plc', 'sector': 'Banking'},
-                {'symbol': 'NESTLENG', 'name': 'Nestle Nigeria Plc', 'sector': 'Consumer Goods'},
-                {'symbol': 'UNILEVER', 'name': 'Unilever Nigeria Plc', 'sector': 'Consumer Goods'},
-                {'symbol': 'SEPLAT', 'name': 'Seplat Petroleum Development Company Plc', 'sector': 'Oil & Gas'},
-                {'symbol': 'TOTAL', 'name': 'TotalEnergies Marketing Nigeria Plc', 'sector': 'Oil & Gas'},
-                {'symbol': 'WAPCO', 'name': 'Lafarge Africa Plc', 'sector': 'Industrial Goods'},
-                {'symbol': 'FLOUR', 'name': 'Flour Mills of Nigeria Plc', 'sector': 'Consumer Goods'},
-                {'symbol': 'NASCON', 'name': 'Nascon Allied Industries Plc', 'sector': 'Consumer Goods'}
-            ]
-            
-            companies.extend(major_companies)
-            
-            logger.info(f"Found {len(companies)} listed companies")
-            
-        except Exception as e:
-            logger.error(f"Failed to get listed companies: {e}")
-        
-        return companies
-    
-    async def _collect_annual_reports(self, companies: List[Dict]) -> List[Dict]:
-        """Collect annual reports for companies"""
-        
-        reports = []
-        
-        for company in companies:
-            try:
-                logger.info(f"Collecting annual report for {company['name']}")
-                
-                # In a real implementation, this would scrape actual annual reports
-                # For now, generating placeholder financial data
-                
-                report_data = {
-                    'company_symbol': company['symbol'],
-                    'company_name': company['name'],
-                    'sector': company['sector'],
-                    'financial_year': '2023',
-                    'financial_data': self._generate_sample_financial_data(company['sector']),
-                    'ratios': self._calculate_sample_ratios(company['sector']),
-                    'report_url': f"https://ngxgroup.com/issuers/{company['symbol'].lower()}/annual-reports",
-                    'collection_date': datetime.now().isoformat()
-                }
-                
-                reports.append(report_data)
-                
-                # Respectful delay
-                await asyncio.sleep(2)
-                
-            except Exception as e:
-                logger.error(f"Failed to collect report for {company['name']}: {e}")
-        
-        return reports
-    
-    def _generate_sample_financial_data(self, sector: str) -> Dict:
-        """Generate sample financial data based on sector"""
-        
-        import random
-        
-        # Base multipliers by sector
-        sector_multipliers = {
-            'Banking': {'revenue': 200_000_000, 'assets': 2_000_000_000},
-            'Oil & Gas': {'revenue': 500_000_000, 'assets': 800_000_000},
-            'ICT': {'revenue': 300_000_000, 'assets': 400_000_000},
-            'Consumer Goods': {'revenue': 150_000_000, 'assets': 300_000_000},
-            'Industrial Goods': {'revenue': 100_000_000, 'assets': 200_000_000}
-        }
-        
-        multiplier = sector_multipliers.get(sector, sector_multipliers['Consumer Goods'])
-        
-        # Generate realistic financial data
-        revenue = multiplier['revenue'] * random.uniform(0.8, 1.2)
-        total_assets = multiplier['assets'] * random.uniform(0.8, 1.2)
-        
-        return {
-            'revenue': round(revenue, 2),
-            'cost_of_sales': round(revenue * random.uniform(0.6, 0.8), 2),
-            'gross_profit': round(revenue * random.uniform(0.2, 0.4), 2),
-            'operating_expenses': round(revenue * random.uniform(0.15, 0.25), 2),
-            'net_income': round(revenue * random.uniform(0.05, 0.15), 2),
-            'total_assets': round(total_assets, 2),
-            'current_assets': round(total_assets * random.uniform(0.3, 0.5), 2),
-            'total_liabilities': round(total_assets * random.uniform(0.5, 0.7), 2),
-            'current_liabilities': round(total_assets * random.uniform(0.2, 0.3), 2),
-            'shareholders_equity': round(total_assets * random.uniform(0.3, 0.5), 2),
-            'currency': 'NGN'
-        }
-    
-    def _calculate_sample_ratios(self, sector: str) -> Dict:
-        """Calculate financial ratios from sample data"""
-        
-        import random
-        
-        # Sector-specific ratio ranges
-        sector_ratios = {
-            'Banking': {
-                'current_ratio': (1.2, 1.8),
-                'debt_to_equity': (6.0, 12.0),
-                'return_on_assets': (0.015, 0.025),
-                'net_profit_margin': (0.15, 0.25)
-            },
-            'Oil & Gas': {
-                'current_ratio': (1.0, 1.5),
-                'debt_to_equity': (0.3, 0.7),
-                'return_on_assets': (0.08, 0.15),
-                'net_profit_margin': (0.10, 0.20)
-            },
-            'default': {
-                'current_ratio': (1.5, 2.5),
-                'debt_to_equity': (0.3, 0.6),
-                'return_on_assets': (0.05, 0.15),
-                'net_profit_margin': (0.05, 0.15)
-            }
-        }
-        
-        ranges = sector_ratios.get(sector, sector_ratios['default'])
-        
-        return {
-            'current_ratio': round(random.uniform(*ranges['current_ratio']), 2),
-            'debt_to_equity': round(random.uniform(*ranges['debt_to_equity']), 2),
-            'return_on_assets': round(random.uniform(*ranges['return_on_assets']), 3),
-            'net_profit_margin': round(random.uniform(*ranges['net_profit_margin']), 3)
-        }
-    
-    async def _get_market_data(self) -> Dict:
-        """Get current market data"""
-        
-        return {
-            'market_capitalization': 45_000_000_000_000,  # ₦45 trillion
-            'total_listed_companies': 154,
-            'trading_volume_today': 1_200_000_000,  # ₦1.2 billion
-            'market_index': 'NGX All-Share Index',
-            'index_value': 52000,
-            'collection_timestamp': datetime.now().isoformat()
-        }
-    
-    async def collect_annual_reports(self):
-        """Public method to collect annual reports"""
-        async with self:
-            return await self.collect_data()
+        super().__init__(NigerianRegulatorySources.NGX_MAIN_PORTAL)
+        logger.info("Initialized NGXScraper.")
+
+    def scrape_listed_companies(self) -> Optional[List[Dict[str, str]]]:
+        """
+        Scrapes a list of currently listed companies on the NGX.
+        This often involves navigating to a specific page listing companies.
+        """
+        listed_companies_url = f"{self.base_url}/exchange/listed-companies/" # Hypothetical path
+        logger.info(f"Attempting to scrape listed companies from: {listed_companies_url}")
+
+        html_content = self.get_html(listed_companies_url)
+        if html_content:
+            soup = BeautifulSoup(html_content, 'lxml')
+            companies = []
+            # This is a hypothetical selector. Inspect NGX site for actual table/list structure.
+            # Example: find a table with class 'company-list-table' and iterate through rows
+            company_table = soup.find('table', class_='company-list-table')
+            if company_table:
+                rows = company_table.find_all('tr')
+                for row in rows[1:]: # Skip header row
+                    cols = row.find_all(['td', 'th'])
+                    if len(cols) >= 2: # Assuming at least Symbol and Company Name
+                        symbol = cols[0].get_text(strip=True)
+                        name = cols[1].get_text(strip=True)
+                        companies.append({"symbol": symbol, "name": name})
+            else:
+                logger.warning(f"Could not find company list table on {listed_companies_url}. Trying general links.")
+                # Fallback: look for general links that might lead to company profiles
+                for link in soup.find_all('a', href=True):
+                    text = link.get_text(strip=True)
+                    if len(text) > 3 and text.isupper() and len(text) < 10: # Heuristic for stock symbols
+                        href = link['href']
+                        full_url = requests.compat.urljoin(listed_companies_url, href)
+                        companies.append({"symbol": text, "name": text, "url": full_url}) # Name might be symbol initially
+            logger.info(f"Found {len(companies)} listed companies (or potential links).")
+            return companies
+        else:
+            logger.error("Failed to retrieve HTML for NGX listed companies.")
+            return None
+
+    def scrape_company_financials(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Scrapes financial statements (e.g., annual reports, quarterly results) for a given company symbol.
+        This would typically involve navigating to the company's profile page and then to its financial reports section.
+        """
+        company_profile_url = f"{self.base_url}/exchange/company-profile/{symbol}/" # Hypothetical path
+        logger.info(f"Attempting to scrape financials for {symbol} from: {company_profile_url}")
+
+        html_content = self.get_html(company_profile_url)
+        if html_content:
+            soup = BeautifulSoup(html_content, 'lxml')
+            financial_data = {"symbol": symbol}
+            # --- Placeholder for parsing logic ---
+            # Look for sections like "Financial Highlights", "Annual Reports", "Quarterly Results"
+            # This will require detailed inspection of NGX company profile pages.
+            # Example: find a table with financial figures
+            financial_table = soup.find('table', {'class': 'financial-summary'})
+            if financial_table:
+                # Parse table rows and columns to extract data like Revenue, Profit, Assets, etc.
+                # This is highly dependent on the actual HTML structure.
+                logger.info(f"Found financial summary table for {symbol}. Parsing...")
+                # For demonstration, mock some data
+                financial_data.update({
+                    "revenue_2023": 1500000000,
+                    "profit_2023": 250000000,
+                    "total_assets_2023": 5000000000,
+                    "report_date": "2024-03-31"
+                })
+            else:
+                logger.warning(f"Could not find financial summary table for {symbol}. Manual inspection needed.")
+
+            # Look for links to full annual reports (often PDFs)
+            report_links = soup.find_all('a', text=lambda t: t and 'annual report' in t.lower(), href=True)
+            if report_links:
+                financial_data['annual_reports'] = [requests.compat.urljoin(company_profile_url, link['href']) for link in report_links]
+                logger.info(f"Found {len(report_links)} annual report links for {symbol}.")
+            else:
+                financial_data['annual_reports'] = []
+                logger.info(f"No annual report links found for {symbol}.")
+
+            return financial_data
+        else:
+            logger.error(f"Failed to retrieve HTML for NGX company financials for {symbol}.")
+            return None
+
+    def scrape(self, mode: str = "listed_companies", symbol: Optional[str] = None) -> Union[List[Dict[str, str]], Dict[str, Any], None]:
+        """
+        Main scrape method for NGX.
+        Args:
+            mode (str): "listed_companies" to get a list, "company_financials" to get financials for a symbol.
+            symbol (str, optional): Required if mode is "company_financials".
+        """
+        if mode == "listed_companies":
+            return self.scrape_listed_companies()
+        elif mode == "company_financials":
+            if symbol:
+                return self.scrape_company_financials(symbol)
+            else:
+                logger.error("Symbol is required for 'company_financials' mode.")
+                return None
+        else:
+            logger.error(f"Invalid mode: {mode}. Use 'listed_companies' or 'company_financials'.")
+            return None
+
+# Example Usage:
+if __name__ == "__main__":
+    ngx_scraper = NGXScraper()
+
+    print("Scraping NGX listed companies...")
+    companies = ngx_scraper.scrape(mode="listed_companies")
+    if companies:
+        print(f"Found {len(companies)} companies. First 3:")
+        for company in companies[:3]:
+            print(f"  - {company.get('symbol', 'N/A')}: {company.get('name', 'N/A')}")
+
+        # Try to scrape financials for a dummy symbol (e.g., 'ZENITHBANK' or 'DANGCEM')
+        # Replace 'ZENITHBANK' with a real symbol for actual testing.
+        dummy_symbol = 'ZENITHBANK'
+        print(f"\nScraping financials for {dummy_symbol}...")
+        financials = ngx_scraper.scrape(mode="company_financials", symbol=dummy_symbol)
+        if financials:
+            print(f"\nFinancials for {dummy_symbol} (Mock/Partial):")
+            print(financials)
+        else:
+            print(f"\nFailed to scrape financials for {dummy_symbol}.")
+    else:
+        print("Failed to scrape NGX listed companies.")
